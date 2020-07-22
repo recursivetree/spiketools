@@ -164,18 +164,20 @@ Available Options:
                         raw_print = True
                 else:
                     path = read_path(self.remote_path, arg)
-            try:
-                raw_data = self.spike_file_system.get(path)
-                if raw_print:
-                    print(raw_data)
-                else:
-                    try:
-                        print(raw_data.decode("utf-8"))
-                    except UnicodeDecodeError:
-                        print("Not a text file! Try cat -r <file>")
-            except RuntimeError as e:
-                print("Failed to read file: {}".format(e))
-
+            if path in self.spike_file_cache:
+                try:
+                    raw_data = self.spike_file_system.get(path)
+                    if raw_print:
+                        print(raw_data)
+                    else:
+                        try:
+                            print(raw_data.decode("utf-8"))
+                        except UnicodeDecodeError:
+                            print("Not a text file! Try cat -r <file>")
+                except (RuntimeError,ampy.pyboard.PyboardError) as e:
+                    print("Failed to read file: {}".format(e))
+            else:
+                print("File not found!")
         else:
             print("please connect to a spike before using this command.")
 
@@ -255,6 +257,7 @@ Available Options:
             new_slots_file = str(slots_dict)
             self.spike_file_system.put("/projects/.slots", new_slots_file.encode("utf-8"))
 
+            self.spike_file_cache.append("/projects/{}.py".format(file_id))
             print("Done")
         else:
             print("please connect to a spike before using this command.")
