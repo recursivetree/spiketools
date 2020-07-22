@@ -8,9 +8,111 @@ import ampy.files
 import ampy.pyboard
 import serial.tools.list_ports
 
+PROTECTED_PATHS = [
+    '/boot.py',
+    '/bt-lk1.dat',
+    '/bt-lk2.dat',
+    '/commands/__init__.mpy',
+    '/commands/abstract_handler.mpy',
+    '/commands/hub_methods.mpy',
+    '/commands/light_methods.mpy',
+    '/commands/linegraphmonitor_methods.mpy',
+    '/commands/motor_methods.mpy',
+    '/commands/move_methods.mpy',
+    '/commands/program_methods.mpy',
+    '/commands/sound_methods.mpy',
+    '/commands/wait_methods.mpy',
+    '/event_loop/__init__.mpy',
+    '/event_loop/event_loop.mpy',
+    '/hub_runtime.mpy',
+    '/local_name.txt',
+    '/main.py',
+    '/programrunner/__init__.mpy',
+    '/projects/.slots',
+    '/projects/standalone.mpy',
+    '/projects/standalone_/__init__.mpy',
+    '/projects/standalone_/animation.mpy',
+    '/projects/standalone_/device_helper.mpy',
+    '/projects/standalone_/devices.mpy',
+    '/projects/standalone_/display.mpy',
+    '/projects/standalone_/priority_mapping.mpy',
+    '/projects/standalone_/program.mpy',
+    '/projects/standalone_/row.mpy',
+    '/projects/standalone_/util.mpy',
+    '/protocol/__init__.mpy',
+    '/protocol/notifications.mpy',
+    '/protocol/rpc_protocol.mpy',
+    '/protocol/ujsonrpc.mpy',
+    '/runtime/__init__.mpy',
+    '/runtime/dirty_dict.mpy',
+    '/runtime/extensions/__init__.mpy',
+    '/runtime/extensions/abstract_extension.mpy',
+    '/runtime/extensions/linegraphmonitor.mpy',
+    '/runtime/extensions/music.mpy',
+    '/runtime/extensions/sound.mpy',
+    '/runtime/extensions/weather.mpy',
+    '/runtime/multimotor.mpy',
+    '/runtime/stack.mpy',
+    '/runtime/timer.mpy',
+    '/runtime/virtualmachine.mpy',
+    '/runtime/vm_store.mpy',
+    '/sounds/menu_click',
+    '/sounds/menu_fastback',
+    '/sounds/menu_program_start',
+    '/sounds/menu_program_stop',
+    '/sounds/menu_shutdown',
+    '/sounds/startup',
+    '/spike/__init__.mpy',
+    '/spike/app.mpy',
+    '/spike/button.mpy',
+    '/spike/colorsensor.mpy',
+    '/spike/control.mpy',
+    '/spike/distancesensor.mpy',
+    '/spike/forcesensor.mpy',
+    '/spike/lightmatrix.mpy',
+    '/spike/motionsensor.mpy',
+    '/spike/motor.mpy',
+    '/spike/motorpair.mpy',
+    '/spike/operator.mpy',
+    '/spike/primehub.mpy',
+    '/spike/speaker.mpy',
+    '/spike/statuslight.mpy',
+    '/spike/util.mpy',
+    '/system/__init__.mpy',
+    '/system/abstractwrapper.mpy',
+    '/system/callbacks/__init__.mpy',
+    '/system/callbacks/customcallbacks.mpy',
+    '/system/display.mpy',
+    '/system/motors.mpy',
+    '/system/motorwrapper.mpy',
+    '/system/move.mpy',
+    '/system/movewrapper.mpy',
+    '/system/sound.mpy',
+    '/ui/__init__.mpy',
+    '/ui/hubui.mpy',
+    '/util/__init__.mpy',
+    '/util/animations.mpy',
+    '/util/color.mpy',
+    '/util/constants.mpy',
+    '/util/error_handler.mpy',
+    '/util/log.mpy',
+    '/util/motor.mpy',
+    '/util/parser.mpy',
+    '/util/print_override.mpy',
+    '/util/resetter.mpy',
+    '/util/rotation.mpy',
+    '/util/schedule.mpy',
+    '/util/scratch.mpy',
+    '/util/sensors.mpy',
+    '/util/storage.mpy',
+    '/util/time.mpy',
+    '/version.py'
+]
+
+
 
 def read_path(base, child: str, file_mode=False):
-    path_segments = []
+    path_segments = set()
     if not child.startswith("/"):
         path_segments = list(filter(None, base.split('/')))
 
@@ -33,7 +135,7 @@ class SpikeConsole(cmd.Cmd):
         self.spike_file_system = None
         self.remote_path = "/"
         self.connected = False
-        self.spike_file_cache = []
+        self.spike_file_cache = set()
 
     def preloop(self):
         self.do_connect("")
@@ -47,9 +149,11 @@ class SpikeConsole(cmd.Cmd):
                 self.build_prompt()
                 self.connected = True
                 print("Loading file cache...")
-                self.spike_file_cache = self.spike_file_system.ls(directory="/", long_format=False, recursive=True)
+                self.spike_file_cache = set(self.spike_file_system.ls(directory="/", long_format=False, recursive=True))
+                print(self.spike_file_cache)
                 return True
-            except ampy.pyboard.PyboardError:
+            except ampy.pyboard.PyboardError as e:
+                print(e)
                 print("Failed to connect to {}".format(port))
                 self.connected = False
                 return False
@@ -143,6 +247,8 @@ Available Options:
             try:
                 for fs_obj in self.spike_file_system.ls(directory=path, long_format=show_size, recursive=recursive):
                     print(fs_obj)
+                    if not show_size:
+                        self.spike_file_cache.add(fs_obj)
             except RuntimeError as e:
                 print("Failed to list directory contents: {}".format(e))
         else:
@@ -174,7 +280,7 @@ Available Options:
                             print(raw_data.decode("utf-8"))
                         except UnicodeDecodeError:
                             print("Not a text file! Try cat -r <file>")
-                except (RuntimeError,ampy.pyboard.PyboardError) as e:
+                except (RuntimeError, ampy.pyboard.PyboardError) as e:
                     print("Failed to read file: {}".format(e))
             else:
                 print("File not found!")
@@ -185,8 +291,8 @@ Available Options:
         """Reloads the file cache"""
         if self.connected:
             print("Refreshing...")
-            self.spike_file_cache = self.spike_file_cache = self.spike_file_system.ls(directory="/", long_format=False,
-                                                                                      recursive=True)
+            self.spike_file_cache = set(self.spike_file_system.ls(directory="/", long_format=False,
+                                                                                      recursive=True))
             print("Done")
         else:
             print("please connect to a spike before using this command.")
@@ -195,7 +301,17 @@ Available Options:
         self.pyboard.close()
         sys.exit()
 
-    def do_upload(self, args):
+    def do_install(self, args):
+        """
+Installs a python script as if it is installed by the spike app.
+Usage
+install <*file> <options>
+file is  the path to a file on your computer
+Options
+-slot    The slot where the script is installed. Number between 0-20, default 0
+-python  Installs the script as a python script (default)
+-scratch Installs the script as a scratch script
+        """
         if self.connected:
             next_is_slot = False
 
@@ -257,10 +373,47 @@ Available Options:
             new_slots_file = str(slots_dict)
             self.spike_file_system.put("/projects/.slots", new_slots_file.encode("utf-8"))
 
-            self.spike_file_cache.append("/projects/{}.py".format(file_id))
+            self.spike_file_cache.add("/projects/{}.py".format(file_id))
             print("Done")
         else:
             print("please connect to a spike before using this command.")
+
+    def do_upload(self, path):
+        if self.connected:
+            if os.path.exists(path):
+                if os.path.isfile(path):
+                    with open(path, "rb") as f:
+                        s_path = read_path(self.remote_path, os.path.basename(path))
+                        self.spike_file_system.put(s_path, f.read())
+                        self.spike_file_cache.add(s_path)
+            else:
+                print("path not found")
+        else:
+            print("please connect to a spike before using this command.")
+
+    def do_rm(self, path):
+        if self.connected:
+            if path == "": return
+            abspath = read_path(self.remote_path,path)
+            if not abspath in self.spike_file_cache:
+                print("File not found")
+                return
+            allowed = True
+            for element in PROTECTED_PATHS:
+                if element.startswith(abspath):
+                    allowed = False
+            if allowed:
+                if not input("Confirm deleting {} with yes: ".format(abspath))=="yes":
+                    print("Aborting")
+                    return
+                self.spike_file_cache.remove(abspath)
+                self.spike_file_system.rm(abspath)
+            else:
+                print("Can't delete protected system files")
+                return
+        else:
+            print("please connect to a spike before using this command.")
+
 
 
 SpikeConsole().cmdloop()
